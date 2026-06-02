@@ -1,0 +1,22 @@
+{
+  "name": "LSTM Displacement Predictor - Nigerian GPS",
+  "input_shape": [
+    10,
+    4
+  ],
+  "input_features": [
+    "latitude",
+    "longitude",
+    "speed",
+    "heading"
+  ],
+  "output": "displacement in meters [dx, dy]",
+  "sequence_length": 10,
+  "total_params": 30642,
+  "performance": {
+    "mean_error_meters": 1.1,
+    "median_error_meters": 0.6,
+    "best_error_meters": 0.0,
+    "worst_error_meters": 10.3
+  }
+}

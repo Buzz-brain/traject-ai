@@ -1,19 +1,30 @@
 import { useEffect, useRef } from 'react';
 import type { GpsPoint } from '../lib/utils';
 
+interface PredictedPoint {
+  lat: number;
+  lon: number;
+  timestamp: string;
+  predicted: boolean;
+}
+
 interface Props {
   points: GpsPoint[];
   currentPos: { lat: number; lon: number } | null;
+  predictedPoints?: PredictedPoint[];
+  showPredicted?: boolean;
 }
 
 const NIGERIA_CENTER: [number, number] = [9.082, 8.6753];
 const DEFAULT_ZOOM = 15;
 
-export function MapView({ points, currentPos }: Props) {
+export function MapView({ points, currentPos, predictedPoints = [], showPredicted = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
   const polylineRef = useRef<import('leaflet').Polyline | null>(null);
+  const predictedPolylineRef = useRef<import('leaflet').Polyline | null>(null);
   const markerRef = useRef<import('leaflet').CircleMarker | null>(null);
+  const predictionMarkerRef = useRef<import('leaflet').CircleMarker | null>(null);
 
   useEffect(() => {
     let L: typeof import('leaflet');
@@ -42,13 +53,33 @@ export function MapView({ points, currentPos }: Props) {
 
       L.control.attribution({ prefix: '© OSM' }).addTo(map);
 
+      // GPS polyline (solid green)
       polylineRef.current = L.polyline([], { color: '#10b981', weight: 4, opacity: 0.8 }).addTo(map);
+      
+      // Predicted polyline (dashed purple)
+      predictedPolylineRef.current = L.polyline([], { 
+        color: '#a855f7', 
+        weight: 3, 
+        opacity: 0.6,
+        dashArray: '5, 5'
+      }).addTo(map);
+      
+      // Current position marker (green)
       markerRef.current = L.circleMarker(center, {
         radius: 8,
         fillColor: '#10b981',
         color: '#fff',
         weight: 2,
         fillOpacity: 1,
+      }).addTo(map);
+      
+      // Prediction marker (purple)
+      predictionMarkerRef.current = L.circleMarker(center, {
+        radius: 6,
+        fillColor: '#a855f7',
+        color: '#fff',
+        weight: 2,
+        fillOpacity: 0.8,
       }).addTo(map);
 
       mapRef.current = map;
@@ -77,6 +108,27 @@ export function MapView({ points, currentPos }: Props) {
     markerRef.current.setLatLng(ll);
     mapRef.current.setView(ll, mapRef.current.getZoom(), { animate: true });
   }, [currentPos]);
+
+  // update predicted polyline when predicted points change
+  useEffect(() => {
+    if (!mapRef.current || !predictedPolylineRef.current) return;
+    if (!showPredicted || predictedPoints.length === 0) {
+      predictedPolylineRef.current.setLatLngs([]);
+      if (predictionMarkerRef.current) {
+        const emptyPos: [number, number] = [0, 0];
+        predictionMarkerRef.current.setLatLng(emptyPos);
+      }
+      return;
+    }
+    const predictedLatlngs = predictedPoints.map((p) => [p.lat, p.lon] as [number, number]);
+    predictedPolylineRef.current.setLatLngs(predictedLatlngs);
+    
+    // Update prediction marker to latest predicted position
+    if (predictedPoints.length > 0 && predictionMarkerRef.current) {
+      const lastPredicted = predictedPoints[predictedPoints.length - 1];
+      predictionMarkerRef.current.setLatLng([lastPredicted.lat, lastPredicted.lon]);
+    }
+  }, [predictedPoints, showPredicted]);
 
   return (
     <div

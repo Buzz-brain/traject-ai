@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import { AlertTriangle, ArrowLeft, Lock, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Lock, CheckCircle, XCircle, BarChart3 } from 'lucide-react';
 import { Header } from '../components/Header';
-import { ModeSelector } from '../components/ModeSelector';
 import { Controls } from '../components/Controls';
 import { Dashboard } from '../components/Dashboard';
 import { MapView } from '../components/MapView';
 import { ExportPanel } from '../components/ExportPanel';
+import { EvaluationPanel } from '../components/EvaluationPanel';
+import { useHybridTracking } from '../hooks/useHybridTracking';
 import { useGPS } from '../hooks/useGPS';
-import type { MovementMode } from '../lib/utils';
-import { haversineDistance } from '../lib/utils';
-import { X, RefreshCw, Info, PlusCircle, Trash2, Edit3 } from 'lucide-react';
+import { X, RefreshCw, Info, Zap, Radio } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useSessions } from '../hooks/useSessions';
 import { useStorage } from '../hooks/useStorage';
-import { UPLOAD_URL } from '../lib/supabase';
 
 interface Props {
   isDark: boolean;
@@ -23,7 +21,9 @@ interface Props {
 
 export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
   const [showExport, setShowExport] = useState(false);
+  const [showEvaluation, setShowEvaluation] = useState(false);
   const gps = useGPS();
+  const hybrid = useHybridTracking();
 
   const isActive = gps.status === 'recording' || gps.status === 'paused';
   const [showAccuracyModal, setShowAccuracyModal] = useState(false);
@@ -65,29 +65,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleUploadToDb = async (sessionId: string, points: any[]) => {
-    if (points.length === 0) return;
-    try {
-      const res = await fetch(UPLOAD_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          mode: gps.mode,
-          points,
-          total_distance: gps.totalDistance,
-          duration_seconds: gps.duration,
-          started_at: gps.startedAt,
-          completed_at: new Date().toISOString(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
-      showToast('success', `${data.points_count} points saved to database!`);
-    } catch (err) {
-      showToast('error', `Failed to save: ${String(err)}`);
-    }
-  };
+
 
   const cancelCountdown = () => {
     if (countdownRef.current) {
@@ -183,19 +161,14 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
         </div>
       )}
 
-      {/* Mode Selector */}
-      <div className="mx-3 mt-2 glass-card rounded-2xl p-3">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Movement Mode</p>
-        <ModeSelector
-          value={gps.mode}
-          onChange={(m: MovementMode) => gps.setMode(m)}
-          disabled={isActive}
+      {/* Map - Main Visualization */}
+      <div className="mx-3 mt-3 glass-card rounded-2xl overflow-hidden flex-1 relative" style={{ minHeight: 350 }}>
+        <MapView 
+          points={gps.points} 
+          currentPos={gps.currentPos}
+          predictedPoints={hybrid.state.predictedPoints}
+          showPredicted={hybrid.state.predictionActive}
         />
-      </div>
-
-      {/* Map */}
-      <div className="mx-3 mt-2 glass-card rounded-2xl overflow-hidden flex-1 relative" style={{ minHeight: 260 }}>
-        <MapView points={gps.points} currentPos={gps.currentPos} />
         {countdownActive && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 9999 }}>
             <div className="bg-black/60 text-white rounded-2xl px-6 py-4 text-center pointer-events-auto">
@@ -206,7 +179,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
         )}
       </div>
 
-      {/* Dashboard */}
+      {/* Dashboard with Hybrid Indicators */}
       <div className="mx-3 mt-2">
         <Dashboard
           pointsCount={gps.points.length}
@@ -216,17 +189,31 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           currentPos={gps.currentPos}
           currentAccuracy={gps.currentAccuracy}
           onExplain={explainDisabled}
+          trackingMode={hybrid.state.mode}
+          gpsSignal={hybrid.state.gpsSignal}
+          confidence={hybrid.state.confidence}
+          isTracking={isActive}
+          predictionActive={hybrid.state.predictionActive}
         />
       </div>
 
       {/* Controls */}
       <div className="mx-3 mt-3 glass-card rounded-2xl p-4 relative">
-        {/* Current session display */}
-        {selectedSession && (
-          <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-3">
-            Recording to: <span className="text-emerald-500 dark:text-emerald-300">{sessionsList.find(s => s.sessionId === selectedSession)?.sessionName || 'Untitled Session'}</span>
-          </div>
-        )}
+        {/* Prediction Status */}
+        <div className="mb-3 flex items-center gap-2">
+          {hybrid.state.predictionActive && (
+            <div className="text-xs font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+              <Zap size={14} className="text-purple-500" />
+              AI Predictions Active
+            </div>
+          )}
+          {gps.points.length > 0 && !hybrid.state.predictionActive && (
+            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+              <Radio size={14} className="text-blue-500" />
+              GPS Recording
+            </div>
+          )}
+        </div>
         <Controls
           status={gps.status}
           onStart={() => {
@@ -253,12 +240,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
                 setSessionsList(sessions.list());
                 // Save the current points to this new session
                 gps.savePointsToSession(newSession.sessionId);
-                // Upload to database
-                handleUploadToDb(newSession.sessionId, gps.points);
               }
-            } else if (selectedSession && gps.points.length > 0) {
-              // Upload to database if session is selected
-              handleUploadToDb(selectedSession, gps.points);
             }
             gps.stopRecording();
             // Save stoppedAt timestamp to session
@@ -277,25 +259,18 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
         />
       </div>
 
-      {/* Sessions floating button (FAB) */}
-      <button
-        onClick={() => setShowSessionsModal(true)}
-        className="fixed right-4 bottom-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/30"
-        aria-label="Open Sessions"
-      >
-        <PlusCircle size={18} />
-        <span className="hidden sm:inline-block text-sm font-semibold">Sessions</span>
-      </button>
+      {/* Sessions floating button (FAB) - Hidden for demo */}
+      {/* Hidden to focus on hybrid tracking demo */}
 
       {/* Export Toggle */}
       {gps.points.length > 0 && (
-        <div className="mx-3 mt-2">
+        <div className="mx-3 mt-3">
           <button
             onClick={() => setShowExport((v) => !v)}
             className="w-full text-xs font-semibold text-slate-500 dark:text-slate-400
-              hover:text-emerald-500 transition-colors py-1"
+              hover:text-emerald-500 transition-colors py-1.5"
           >
-            {showExport ? '▲ Hide Export' : '▼ Show Export & Upload'}
+            {showExport ? '▲ Hide Data Export' : '▼ Show Data Export'}
           </button>
           {showExport && (
             <div className="mt-2">
@@ -314,6 +289,29 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           )}
         </div>
       )}
+
+      {/* Evaluation Toggle - Prominent for Hybrid Testing */}
+      {hybrid.state.predictedPoints.length > 0 && (
+        <div className="mx-3 mt-3">
+          <button
+            onClick={() => setShowEvaluation(true)}
+            className="w-full text-xs font-semibold text-purple-600 dark:text-purple-400
+              bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30
+              transition-colors py-2.5 px-3 rounded-lg flex items-center justify-center gap-2"
+          >
+            <BarChart3 size={15} />
+            📊 AI vs GPS Accuracy Metrics
+          </button>
+        </div>
+      )}
+
+      {/* Evaluation Panel */}
+      <EvaluationPanel
+        gpsPoints={gps.points}
+        predictedPoints={hybrid.state.predictedPoints}
+        isOpen={showEvaluation}
+        onClose={() => setShowEvaluation(false)}
+      />
 
       <div className="h-6" />
 

@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { Download, Trash2, Upload, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 import type { GpsPoint } from '../lib/utils';
-import { haversineDistance } from '../lib/utils';
-import { UPLOAD_URL } from '../lib/supabase';
 import { useStorage } from '../hooks/useStorage';
 
 interface Props {
@@ -17,11 +15,7 @@ interface Props {
   disabled?: boolean;
 }
 
-type UploadState = 'idle' | 'uploading' | 'success' | 'error';
-
 export function ExportPanel({ points, sessionId, sessionName, mode, totalDistance, duration, startedAt, onClear, disabled }: Props) {
-  const [uploadState, setUploadState] = useState<UploadState>('idle');
-  const [uploadMsg, setUploadMsg] = useState('');
   const { loadSession, loadAll } = useStorage();
 
   const computeMetadata = () => {
@@ -136,33 +130,7 @@ export function ExportPanel({ points, sessionId, sessionName, mode, totalDistanc
     URL.revokeObjectURL(a.href);
   };
 
-  const handleUpload = async () => {
-    if (points.length === 0) return;
-    setUploadState('uploading');
-    setUploadMsg('');
-    try {
-      const res = await fetch(UPLOAD_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          mode,
-          points,
-          total_distance: totalDistance,
-          duration_seconds: duration,
-          started_at: startedAt,
-          completed_at: new Date().toISOString(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
-      setUploadState('success');
-      setUploadMsg(`${data.points_count} points uploaded successfully!`);
-    } catch (err) {
-      setUploadState('error');
-      setUploadMsg(String(err));
-    }
-  };
+
 
   return (
     <div className="glass-card rounded-2xl p-4 space-y-3">
@@ -207,19 +175,6 @@ export function ExportPanel({ points, sessionId, sessionName, mode, totalDistanc
           Export All CSV
         </button>
       </div>
-
-      {uploadState === 'success' && (
-        <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2">
-          <CheckCircle size={13} />
-          {uploadMsg}
-        </div>
-      )}
-      {uploadState === 'error' && (
-        <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl px-3 py-2">
-          <XCircle size={13} />
-          {uploadMsg}
-        </div>
-      )}
 
       <button
         onClick={onClear}

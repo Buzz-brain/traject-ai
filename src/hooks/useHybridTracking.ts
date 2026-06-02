@@ -1,0 +1,307 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import type { GpsPoint } from '../lib/utils';
+import { displacementToCoordinates } from '../lib/utils';
+import { predictNextLocation } from '../lib/predictor';
+import { loadModel } from '../lib/model';
+import type { TrackingMode, GpsSignalQuality, ConfidenceLevel } from '../components/SystemIndicators';
+
+export interface HybridTrackingState {
+  mode: TrackingMode;
+  gpsSignal: GpsSignalQuality;
+  confidence: ConfidenceLevel;
+  currentPos: { lat: number; lon: number } | null;
+  gpsPoints: GpsPoint[];
+  predictedPoints: Array<{ lat: number; lon: number; timestamp: string; predicted: true }>;
+  predictionActive: boolean;
+  gpsLossStart: number | null;
+  accuracy: number | null;
+}
+
+interface UseHybridTrackingOptions {
+  gpsLossThreshold?: number; // ms before switching to AI
+  accuracyThreshold?: number; // meters for "good" GPS
+  updateInterval?: number; // ms
+}
+
+const DEFAULT_OPTIONS: UseHybridTrackingOptions = {
+  gpsLossThreshold: 5000, // 5 seconds
+  accuracyThreshold: 20, // 20 meters
+  updateInterval: 1000 // 1 second
+};
+
+export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+
+  // State
+  const [state, setState] = useState<HybridTrackingState>({
+    mode: 'gps_only',
+    gpsSignal: 'good',
+    confidence: 'unknown',
+    currentPos: null,
+    gpsPoints: [],
+    predictedPoints: [],
+    predictionActive: false,
+    gpsLossStart: null,
+    accuracy: null
+  });
+
+  // Refs
+  const modelLoadedRef = useRef(false);
+  const predictionIntervalRef = useRef<number | null>(null);
+  const gpsWatchIdRef = useRef<number | null>(null);
+  const lastGpsUpdateRef = useRef<number>(Date.now());
+  const userModeRef = useRef<TrackingMode | null>(null); // User's explicit mode choice
+
+  // Initialize model on mount
+  useEffect(() => {
+    loadModel()
+      .then(() => {
+        modelLoadedRef.current = true;
+        console.log('Hybrid tracking: Model loaded');
+      })
+      .catch(err => console.error('Hybrid tracking: Failed to load model', err));
+  }, []);
+
+  /**
+   * Update GPS signal quality based on accuracy
+   */
+  const updateGpsSignal = useCallback((accuracy: number | null): GpsSignalQuality => {
+    if (accuracy === null || accuracy === undefined) return 'lost';
+    if (accuracy <= opts.accuracyThreshold!) return 'good';
+    if (accuracy <= 50) return 'weak';
+    return 'poor';
+  }, [opts]);
+
+  /**
+   * Update current position and tracking state
+   */
+  const updatePosition = useCallback((lat: number, lon: number, accuracy: number | null) => {
+    const signal = updateGpsSignal(accuracy);
+    lastGpsUpdateRef.current = Date.now();
+
+    setState(prev => ({
+      ...prev,
+      currentPos: { lat, lon },
+      accuracy,
+      gpsSignal: signal,
+      gpsLossStart: signal === 'lost' ? prev.gpsLossStart || Date.now() : null
+    }));
+  }, [updateGpsSignal]);
+
+  /**
+   * Add a GPS point to the tracking history
+   */
+  const addGpsPoint = useCallback((lat: number, lon: number, accuracy: number | null, speed: number = 0, heading: number = 0) => {
+    const newPoint: GpsPoint = {
+      lat,
+      lon,
+      timestamp: new Date().toISOString(),
+      speed,
+      heading,
+      mode: 'tracking'
+    };
+
+    setState(prev => {
+      const updated = [...prev.gpsPoints, newPoint];
+      // Keep only last 100 points to avoid memory issues
+      if (updated.length > 100) {
+        updated.shift();
+      }
+      return {
+        ...prev,
+        gpsPoints: updated
+      };
+    });
+
+    updatePosition(lat, lon, accuracy);
+  }, [updatePosition]);
+
+  /**
+   * Run AI prediction and add predicted point
+   */
+  const runPrediction = useCallback(async () => {
+    if (!modelLoadedRef.current || !state.currentPos) return;
+
+    try {
+      const result = await predictNextLocation(state.gpsPoints);
+      if (!result) return;
+
+      const { dx, dy, confidence } = result;
+
+      // Convert displacement to new coordinates
+      const predictedPos = displacementToCoordinates(
+        state.currentPos.lat,
+        state.currentPos.lon,
+        dx,
+        dy
+      );
+
+      // Add predicted point
+      const predictedPoint = {
+        lat: predictedPos.lat,
+        lon: predictedPos.lon,
+        timestamp: new Date().toISOString(),
+        predicted: true as const
+      };
+
+      setState(prev => ({
+        ...prev,
+        predictedPoints: [...prev.predictedPoints, predictedPoint].slice(-20), // Keep last 20
+        confidence: confidence > 0.7 ? 'high' : confidence > 0.4 ? 'medium' : 'low'
+      }));
+    } catch (error) {
+      console.error('Prediction error:', error);
+    }
+  }, [state.currentPos, state.gpsPoints]);
+
+  /**
+   * Set explicit tracking mode
+   */
+  const setTrackingMode = useCallback((mode: TrackingMode) => {
+    userModeRef.current = mode;
+    setState(prev => ({
+      ...prev,
+      mode,
+      predictionActive: mode === 'ai_only' || (mode === 'hybrid' && prev.gpsSignal === 'lost')
+    }));
+  }, []);
+
+  /**
+   * Auto-update mode based on GPS signal (for hybrid mode)
+   */
+  useEffect(() => {
+    if (userModeRef.current === 'gps_only') return;
+
+    setState(prev => {
+      let newMode = prev.mode;
+      let predictionActive = prev.predictionActive;
+
+      if (userModeRef.current === 'hybrid') {
+        // In hybrid mode, switch between GPS and AI based on signal
+        if (prev.gpsSignal === 'lost' || prev.gpsSignal === 'poor') {
+          newMode = prev.gpsPoints.length >= 10 ? 'hybrid' : 'gps_only';
+          predictionActive = prev.gpsPoints.length >= 10;
+        } else {
+          newMode = 'hybrid';
+          predictionActive = false;
+        }
+      } else if (userModeRef.current === 'ai_only') {
+        newMode = 'ai_only';
+        predictionActive = prev.gpsPoints.length >= 10;
+      }
+
+      if (newMode !== prev.mode || predictionActive !== prev.predictionActive) {
+        return {
+          ...prev,
+          mode: newMode,
+          predictionActive
+        };
+      }
+
+      return prev;
+    });
+  }, [state.gpsSignal, state.gpsPoints.length]);
+
+  /**
+   * Start periodic predictions when GPS is lost
+   */
+  useEffect(() => {
+    if (state.predictionActive && state.gpsPoints.length >= 10) {
+      if (!predictionIntervalRef.current) {
+        predictionIntervalRef.current = window.setInterval(() => {
+          runPrediction();
+        }, opts.updateInterval);
+      }
+    } else {
+      if (predictionIntervalRef.current) {
+        clearInterval(predictionIntervalRef.current);
+        predictionIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (predictionIntervalRef.current) {
+        clearInterval(predictionIntervalRef.current);
+        predictionIntervalRef.current = null;
+      }
+    };
+  }, [state.predictionActive, state.gpsPoints.length, opts.updateInterval, runPrediction]);
+
+  /**
+   * Start tracking (use browser Geolocation API)
+   */
+  const startTracking = useCallback(() => {
+    if (!navigator.geolocation) {
+      console.error('Geolocation not available');
+      return;
+    }
+
+    // Set default mode if not specified
+    if (!userModeRef.current) {
+      userModeRef.current = 'hybrid';
+    }
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      position => {
+        const { latitude, longitude, accuracy } = position.coords;
+        addGpsPoint(latitude, longitude, accuracy);
+      },
+      error => {
+        console.error('Geolocation error:', error);
+        setState(prev => ({
+          ...prev,
+          gpsSignal: 'lost'
+        }));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 1000
+      }
+    );
+  }, [addGpsPoint]);
+
+  /**
+   * Stop tracking
+   */
+  const stopTracking = useCallback(() => {
+    if (gpsWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      gpsWatchIdRef.current = null;
+    }
+
+    if (predictionIntervalRef.current) {
+      clearInterval(predictionIntervalRef.current);
+      predictionIntervalRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Reset tracking state
+   */
+  const reset = useCallback(() => {
+    stopTracking();
+    setState({
+      mode: 'gps_only',
+      gpsSignal: 'good',
+      confidence: 'unknown',
+      currentPos: null,
+      gpsPoints: [],
+      predictedPoints: [],
+      predictionActive: false,
+      gpsLossStart: null,
+      accuracy: null
+    });
+    userModeRef.current = null;
+  }, [stopTracking]);
+
+  return {
+    state,
+    startTracking,
+    stopTracking,
+    reset,
+    addGpsPoint,
+    setTrackingMode,
+    runPrediction
+  };
+}

@@ -1,5 +1,6 @@
 import { MapPin, Zap, Ruler, Clock, Navigation, Activity, Info } from 'lucide-react';
 import { formatDistance, formatSpeed, formatDuration } from '../lib/utils';
+import { SystemIndicators, type TrackingMode, type GpsSignalQuality, type ConfidenceLevel } from './SystemIndicators';
 
 interface Props {
   pointsCount: number;
@@ -8,6 +9,12 @@ interface Props {
   duration: number;
   currentPos: { lat: number; lon: number } | null;
   currentAccuracy?: number | null;
+  // Hybrid tracking indicators (optional)
+  trackingMode?: TrackingMode;
+  gpsSignal?: GpsSignalQuality;
+  confidence?: ConfidenceLevel;
+  isTracking?: boolean;
+  predictionActive?: boolean;
 }
 
 function StatCard({
@@ -35,7 +42,20 @@ function StatCard({
   );
 }
 
-export function Dashboard({ pointsCount, totalDistance, currentSpeed, duration, currentPos, currentAccuracy, onExplain }: Props & { onExplain?: () => void }) {
+export function Dashboard({ 
+  pointsCount, 
+  totalDistance, 
+  currentSpeed, 
+  duration, 
+  currentPos, 
+  currentAccuracy, 
+  onExplain,
+  trackingMode = 'gps_only',
+  gpsSignal = 'good',
+  confidence = 'unknown',
+  isTracking = false,
+  predictionActive = false
+}: Props & { onExplain?: () => void }) {
   const renderBadge = () => {
     if (typeof currentAccuracy !== 'number') return null;
     const isPoor = currentAccuracy > 50;
@@ -65,10 +85,28 @@ export function Dashboard({ pointsCount, totalDistance, currentSpeed, duration, 
   };
 
   return (
-    <div>
-      {renderBadge()}
-      {typeof currentAccuracy === 'number' && currentAccuracy > 20 && (
-        <div className="mb-2 text-xs text-slate-600 dark:text-slate-400">Go outside or enable precise location for better accuracy</div>
+    <div className="space-y-3">
+      {/* System Indicators */}
+      <SystemIndicators
+        mode={trackingMode}
+        gpsSignal={gpsSignal}
+        confidence={confidence}
+        isTracking={isTracking}
+        gpsPoints={pointsCount}
+        predictionActive={predictionActive}
+        accuracy={currentAccuracy}
+      />
+
+      {/* GPS Status Warning */}
+      {typeof currentAccuracy === 'number' && currentAccuracy > 50 && (
+        <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+          ⚠️ Poor GPS signal - AI predictions will activate when GPS is lost
+        </div>
+      )}
+      {typeof currentAccuracy === 'number' && currentAccuracy > 20 && currentAccuracy <= 50 && (
+        <div className="mb-2 text-xs text-amber-600 dark:text-amber-400">
+          📍 Go outside for better GPS accuracy
+        </div>
       )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -110,6 +148,25 @@ export function Dashboard({ pointsCount, totalDistance, currentSpeed, duration, 
         accent="text-teal-500"
       />
       </div>
+
+      {/* Hybrid Tracking Metrics */}
+      {predictionActive && (
+        <div className="mt-3 glass-card p-3 rounded-2xl border-l-4 border-purple-500 bg-purple-50/50 dark:bg-purple-900/20">
+          <div className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-2 flex items-center gap-1.5">
+            <Zap size={13} />
+            AI Prediction Active
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-400">
+            GPS signal lost. AI model is now predicting your trajectory based on previous movement patterns.
+          </div>
+        </div>
+      )}
+
+      {confidence !== 'unknown' && (
+        <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 text-center">
+          Prediction Confidence: <span className="font-semibold text-purple-600 dark:text-purple-400">{confidence.toUpperCase()}</span>
+        </div>
+      )}
     </div>
   );
 }

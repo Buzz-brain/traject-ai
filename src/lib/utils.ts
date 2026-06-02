@@ -52,3 +52,52 @@ export function formatSpeed(mps: number): string {
 export function generateSessionId(): string {
   return `naija_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
+
+/**
+ * Convert displacement in meters to new GPS coordinates
+ * dx: displacement in meters (East-West, positive = East)
+ * dy: displacement in meters (North-South, positive = North)
+ */
+export function displacementToCoordinates(
+  lat: number,
+  lon: number,
+  dx: number,
+  dy: number
+): { lat: number; lon: number } {
+  const R = 6371000; // Earth radius in meters
+  const lat_rad = (lat * Math.PI) / 180;
+
+  // Convert meters to degrees
+  const dlat = (dy / R) * (180 / Math.PI);
+  const dlon = (dx / (R * Math.cos(lat_rad))) * (180 / Math.PI);
+
+  return {
+    lat: lat + dlat,
+    lon: lon + dlon
+  };
+}
+
+/**
+ * Convert GPS coordinates to displacement in meters
+ * Inverse of displacementToCoordinates
+ */
+export function coordinatesToDisplacement(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): { dx: number; dy: number } {
+  const R = 6371000; // Earth radius in meters
+  const lat1_rad = (lat1 * Math.PI) / 180;
+  const lat2_rad = (lat2 * Math.PI) / 180;
+  const dlon_rad = ((lon2 - lon1) * Math.PI) / 180;
+  const dlat_rad = ((lat2 - lat1) * Math.PI) / 180;
+
+  const dy = dlat_rad * R;
+  const dx = dlon_rad * R * Math.cos(lat1_rad);
+
+  return {
+    dx: parseFloat(dx.toFixed(2)),
+    dy: parseFloat(dy.toFixed(2))
+  };
+}
