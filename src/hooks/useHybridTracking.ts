@@ -15,6 +15,12 @@ export interface HybridTrackingState {
   predictionActive: boolean;
   gpsLossStart: number | null;
   accuracy: number | null;
+  // NEW: Hybrid data tracking
+  gpsPointsCount: number;
+  aiPointsCount: number;
+  switchEvents: Array<{ timestamp: string; from: TrackingMode; to: TrackingMode }>;
+  lastModeSwitch: string | null;
+  avgAiConfidence: number;
 }
 
 interface UseHybridTrackingOptions {
@@ -42,7 +48,12 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
     predictedPoints: [],
     predictionActive: false,
     gpsLossStart: null,
-    accuracy: null
+    accuracy: null,
+    gpsPointsCount: 0,
+    aiPointsCount: 0,
+    switchEvents: [],
+    lastModeSwitch: null,
+    avgAiConfidence: 0
   });
 
   // Refs
@@ -98,7 +109,9 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
       timestamp: new Date().toISOString(),
       speed,
       heading,
-      mode: 'tracking'
+      mode: 'tracking',
+      source: 'gps',  // NEW: Tag as GPS source
+      accuracy: accuracy ?? undefined
     };
 
     setState(prev => {
@@ -109,7 +122,8 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
       }
       return {
         ...prev,
-        gpsPoints: updated
+        gpsPoints: updated,
+        gpsPointsCount: prev.gpsPointsCount + 1  // NEW: Track count
       };
     });
 
@@ -136,6 +150,18 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
         dy
       );
 
+      // NEW: Create AI point with source tagging
+      const aiPoint: GpsPoint = {
+        lat: predictedPos.lat,
+        lon: predictedPos.lon,
+        timestamp: new Date().toISOString(),
+        speed: 0,
+        heading: 0,
+        mode: 'tracking',
+        source: 'ai_prediction',  // NEW: Tag as AI source
+        confidence: confidence     // NEW: Store confidence
+      };
+
       // Add predicted point
       const predictedPoint = {
         lat: predictedPos.lat,
@@ -144,11 +170,21 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
         predicted: true as const
       };
 
-      setState(prev => ({
-        ...prev,
-        predictedPoints: [...prev.predictedPoints, predictedPoint].slice(-20), // Keep last 20
-        confidence: confidence > 0.7 ? 'high' : confidence > 0.4 ? 'medium' : 'low'
-      }));
+      setState(prev => {
+        // Calculate running average confidence
+        const totalConfidence = (prev.avgAiConfidence * prev.aiPointsCount) + confidence;
+        const newAiCount = prev.aiPointsCount + 1;
+        const newAvgConfidence = totalConfidence / newAiCount;
+
+        return {
+          ...prev,
+          predictedPoints: [...prev.predictedPoints, predictedPoint].slice(-20), // Keep last 20
+          gpsPoints: [...prev.gpsPoints, aiPoint],  // NEW: Add AI point to records
+          confidence: confidence > 0.7 ? 'high' : confidence > 0.4 ? 'medium' : 'low',
+          aiPointsCount: newAiCount,  // NEW: Track count
+          avgAiConfidence: newAvgConfidence  // NEW: Track average
+        };
+      });
     } catch (error) {
       console.error('Prediction error:', error);
     }
@@ -159,11 +195,22 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
    */
   const setTrackingMode = useCallback((mode: TrackingMode) => {
     userModeRef.current = mode;
-    setState(prev => ({
-      ...prev,
-      mode,
-      predictionActive: mode === 'ai_only' || (mode === 'hybrid' && prev.gpsSignal === 'lost')
-    }));
+    setState(prev => {
+      // NEW: Track mode switches
+      const switchEvent = {
+        timestamp: new Date().toISOString(),
+        from: prev.mode,
+        to: mode
+      };
+
+      return {
+        ...prev,
+        mode,
+        predictionActive: mode === 'ai_only' || (mode === 'hybrid' && prev.gpsSignal === 'lost'),
+        switchEvents: [...prev.switchEvents, switchEvent],  // NEW: Record switch
+        lastModeSwitch: switchEvent.timestamp  // NEW: Track last switch
+      };
+    });
   }, []);
 
   /**
@@ -191,10 +238,19 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
       }
 
       if (newMode !== prev.mode || predictionActive !== prev.predictionActive) {
+        // NEW: Track mode switches
+        const switchEvent = {
+          timestamp: new Date().toISOString(),
+          from: prev.mode,
+          to: newMode
+        };
+
         return {
           ...prev,
           mode: newMode,
-          predictionActive
+          predictionActive,
+          switchEvents: [...prev.switchEvents, switchEvent],  // NEW: Record switch
+          lastModeSwitch: switchEvent.timestamp  // NEW: Track last switch
         };
       }
 
@@ -290,7 +346,12 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
       predictedPoints: [],
       predictionActive: false,
       gpsLossStart: null,
-      accuracy: null
+      accuracy: null,
+      gpsPointsCount: 0,  // NEW: Reset count
+      aiPointsCount: 0,   // NEW: Reset count
+      switchEvents: [],   // NEW: Reset switches
+      lastModeSwitch: null,  // NEW: Reset last switch
+      avgAiConfidence: 0  // NEW: Reset average
     });
     userModeRef.current = null;
   }, [stopTracking]);

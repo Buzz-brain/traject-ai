@@ -50,8 +50,11 @@ export async function predictNextLocation(points: GpsPoint[]): Promise<Predictio
       return null;
     }
 
-    // Take the last 10 points
-    const last10Points = points.slice(-10);
+    // // Take the last 10 points
+    // const last10Points = points.slice(-10);
+
+    // Take the last 10 GPS points only (ignore AI predictions for input)
+    const last10Points = points.filter(p => p.source === 'gps').slice(-10);
 
     // Normalize the sequence
     const normalizedSeq = normalizeSequence(last10Points);

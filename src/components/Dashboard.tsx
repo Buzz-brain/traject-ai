@@ -15,6 +15,9 @@ interface Props {
   confidence?: ConfidenceLevel;
   isTracking?: boolean;
   predictionActive?: boolean;
+  // NEW: Hybrid data counts
+  gpsPointsCount?: number;
+  aiPointsCount?: number;
 }
 
 function StatCard({
@@ -54,7 +57,9 @@ export function Dashboard({
   gpsSignal = 'good',
   confidence = 'unknown',
   isTracking = false,
-  predictionActive = false
+  predictionActive = false,
+  gpsPointsCount = 0,  // NEW
+  aiPointsCount = 0    // NEW
 }: Props & { onExplain?: () => void }) {
   const renderBadge = () => {
     if (typeof currentAccuracy !== 'number') return null;
@@ -100,12 +105,12 @@ export function Dashboard({
       {/* GPS Status Warning */}
       {typeof currentAccuracy === 'number' && currentAccuracy > 50 && (
         <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-          ⚠️ Poor GPS signal - AI predictions will activate when GPS is lost
+          ⚠️ Poor GPS signal - Hybrid system ready to seamlessly switch to AI
         </div>
       )}
       {typeof currentAccuracy === 'number' && currentAccuracy > 20 && currentAccuracy <= 50 && (
         <div className="mb-2 text-xs text-amber-600 dark:text-amber-400">
-          📍 Go outside for better GPS accuracy
+          📍 GPS signal is weak - move outside for better accuracy
         </div>
       )}
 
@@ -114,7 +119,7 @@ export function Dashboard({
         icon={<Activity size={13} />}
         label="Points"
         value={pointsCount.toLocaleString()}
-        sub="collected"
+        sub="tracked"
         accent="text-emerald-500"
       />
       <StatCard
@@ -148,6 +153,29 @@ export function Dashboard({
         accent="text-teal-500"
       />
       </div>
+
+      {/* NEW: GPS vs AI Data Breakdown */}
+      {(gpsPointsCount > 0 || aiPointsCount > 0) && (
+        <div className="mt-3 glass-card p-3 rounded-2xl">
+          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Hybrid System Breakdown</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold">GPS Points</div>
+              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{gpsPointsCount}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {gpsPointsCount + aiPointsCount > 0 ? ((gpsPointsCount / (gpsPointsCount + aiPointsCount)) * 100).toFixed(0) : 0}%
+              </div>
+            </div>
+            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2">
+              <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold">AI Points</div>
+              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{aiPointsCount}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {gpsPointsCount + aiPointsCount > 0 ? ((aiPointsCount / (gpsPointsCount + aiPointsCount)) * 100).toFixed(0) : 0}%
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hybrid Tracking Metrics */}
       {predictionActive && (

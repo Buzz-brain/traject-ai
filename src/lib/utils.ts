@@ -5,6 +5,9 @@ export interface GpsPoint {
   speed: number;
   heading: number;
   mode: string;
+  source?: 'gps' | 'ai_prediction'; // NEW: Track data source
+  confidence?: number; // NEW: AI prediction confidence (0-1)
+  accuracy?: number; // GPS accuracy in meters
 }
 
 export type MovementMode = 'walking' | 'driving' | 'running' | 'bike';

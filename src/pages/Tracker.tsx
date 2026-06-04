@@ -55,7 +55,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
 
   const explainDisabled = () => {
     setModalMessage(
-      'Cannot start recording because GPS accuracy is poor. Go outside or enable precise/high-accuracy location in your device settings.'
+      'Cannot start tracking because GPS accuracy is poor. Go outside or enable precise/high-accuracy location in your device settings.'
     );
     setShowAccuracyModal(true);
   };
@@ -148,7 +148,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-white">Location Access Required</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Allow location access to begin recording your GPS trajectory.
+              Allow location access to begin tracking your GPS trajectory.
             </p>
           </div>
           <button
@@ -173,7 +173,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 9999 }}>
             <div className="bg-black/60 text-white rounded-2xl px-6 py-4 text-center pointer-events-auto">
               <div className="text-5xl font-bold tabular-nums">{countdown}</div>
-              <div className="text-sm mt-1">Recording starts in</div>
+              <div className="text-sm mt-1">Tracking starts in</div>
             </div>
           </div>
         )}
@@ -194,6 +194,8 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           confidence={hybrid.state.confidence}
           isTracking={isActive}
           predictionActive={hybrid.state.predictionActive}
+          gpsPointsCount={hybrid.state.gpsPointsCount}
+          aiPointsCount={hybrid.state.aiPointsCount}
         />
       </div>
 
@@ -210,7 +212,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           {gps.points.length > 0 && !hybrid.state.predictionActive && (
             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
               <Radio size={14} className="text-blue-500" />
-              GPS Recording
+              GPS Tracking
             </div>
           )}
         </div>
@@ -284,6 +286,10 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
                 startedAt={gps.startedAt}
                 onClear={gps.resetRecording}
                 disabled={gps.status === 'recording'}
+                gpsPointsCount={hybrid.state.gpsPointsCount}
+                aiPointsCount={hybrid.state.aiPointsCount}
+                switchEvents={hybrid.state.switchEvents}
+                avgAiConfidence={hybrid.state.avgAiConfidence}
               />
             </div>
           )}

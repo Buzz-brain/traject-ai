@@ -18,8 +18,8 @@ export async function loadModel(): Promise<tf.LayersModel> {
     return modelLoading;
   }
 
-  // Load the model
-  modelLoading = tf.loadLayersModel('file://./model/model.json');
+  // Load the model from public directory (served at root URL in Vite)
+  modelLoading = tf.loadLayersModel('/model/model.json');
 
   try {
     modelInstance = await modelLoading;

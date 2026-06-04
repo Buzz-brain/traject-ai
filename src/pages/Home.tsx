@@ -1,4 +1,4 @@
-import { Radio, MapPin, Database, Cpu, ChevronRight, Globe, Sun, Moon } from 'lucide-react';
+import { Zap, MapPin, Database, Cpu, ChevronRight, BarChart3, Sun, Moon } from 'lucide-react';
 
 interface Props {
   onStart: () => void;
@@ -8,24 +8,24 @@ interface Props {
 
 const FEATURES = [
   {
-    icon: <MapPin size={18} className="text-emerald-400" />,
-    title: 'Live GPS Tracking',
-    desc: 'High-accuracy location sampling every 1s or 5m movement',
+    icon: <Zap size={18} className="text-purple-400" />,
+    title: 'Hybrid GPS + AI Tracking',
+    desc: 'Seamlessly switches to AI predictions when GPS signal is lost, never losing your position',
+  },
+  {
+    icon: <Cpu size={18} className="text-blue-400" />,
+    title: 'On-Device AI Inference',
+    desc: 'LSTM model runs in your browser—no cloud, no internet needed, completely private',
   },
   {
     icon: <Database size={18} className="text-sky-400" />,
-    title: 'Offline-First Storage',
-    desc: 'Data saved locally, then synced to secure cloud storage',
+    title: 'Local Data Storage',
+    desc: 'All trajectories and analytics saved locally on your device, you have full control',
   },
   {
-    icon: <Cpu size={18} className="text-amber-400" />,
-    title: 'AI Training Ready',
-    desc: 'Structured JSON format for LSTM trajectory prediction models',
-  },
-  {
-    icon: <Globe size={18} className="text-rose-400" />,
-    title: 'Made for Nigeria',
-    desc: 'Optimized for Nigerian roads, cities & movement patterns',
+    icon: <BarChart3 size={18} className="text-emerald-400" />,
+    title: 'Hybrid System Insights',
+    desc: 'View real-time statistics on GPS vs AI-predicted points to evaluate system effectiveness',
   },
 ];
 
@@ -35,10 +35,10 @@ export function Home({ onStart, isDark, onToggleTheme }: Props) {
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-            <Radio size={18} className="text-white" />
+          <div className="w-9 h-9 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <Zap size={18} className="text-white" />
           </div>
-          <span className="font-bold text-slate-800 dark:text-white">Naija GPS Collector</span>
+          <span className="font-bold text-slate-800 dark:text-white">TrajectAI</span>
         </div>
         <button
           onClick={onToggleTheme}
@@ -53,43 +53,43 @@ export function Home({ onStart, isDark, onToggleTheme }: Props) {
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center gap-8">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 text-xs font-semibold px-4 py-1.5 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Open Data Initiative · Nigeria
+        <div className="inline-flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 text-xs font-semibold px-4 py-1.5 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+          AI-Powered Hybrid Tracking
         </div>
 
         <div className="space-y-4 max-w-md">
           <h2 className="text-4xl sm:text-5xl font-black text-slate-800 dark:text-white leading-tight">
-            Map Nigeria,<br />
-            <span className="text-emerald-500">Train AI</span>
+            Never Lose<br />
+            <span className="text-purple-500">Your Position</span>
           </h2>
           <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
-            Contribute GPS movement data from your daily commute, walks, and drives across Nigeria.
-            Every trajectory helps build smarter AI models for mobility prediction.
+            Track your movement in real-time with GPS. When signal is lost, AI takes over seamlessly.
+            All powered on-device, completely private, no cloud required.
           </p>
         </div>
 
         <button
           onClick={onStart}
-          className="group flex items-center gap-3 bg-emerald-500 hover:bg-emerald-400
+          className="group flex items-center gap-3 bg-purple-500 hover:bg-purple-400
             text-white font-bold text-base px-8 py-4 rounded-2xl
-            shadow-xl shadow-emerald-500/40 hover:shadow-emerald-500/60
+            shadow-xl shadow-purple-500/40 hover:shadow-purple-500/60
             transition-all duration-200 hover:scale-105 active:scale-95"
         >
-          <MapPin size={20} />
-          Start Collecting Data
+          <Zap size={20} />
+          Start Hybrid Tracking
           <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
         </button>
 
         {/* Stats strip */}
         <div className="flex gap-6 text-center">
           {[
-            { n: '1s', label: 'Sample Rate' },
-            { n: '5m', label: 'Min Distance' },
-            { n: '6+', label: 'Data Fields' },
+            { n: 'GPS', label: 'Primary Source' },
+            { n: 'AI', label: 'Backup Mode' },
+            { n: '100%', label: 'Private' },
           ].map((s) => (
             <div key={s.label}>
-              <div className="text-2xl font-black text-emerald-500">{s.n}</div>
+              <div className="text-2xl font-black text-purple-500">{s.n}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</div>
             </div>
           ))}

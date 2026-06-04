@@ -192,7 +192,7 @@ export function useGPS() {
     }
     // only allow starting when accuracy is acceptable (<= MAX_ACCEPTABLE_ACCURACY) unless forced
     if (!force && currentAccuracy != null && currentAccuracy > MAX_ACCEPTABLE_ACCURACY) {
-      setError('Cannot start recording: poor GPS accuracy. Move outside or enable precise location.');
+      setError('Cannot start tracking: poor GPS accuracy. Move outside or enable precise location.');
       return;
     }
 

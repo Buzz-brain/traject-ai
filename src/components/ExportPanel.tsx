@@ -13,9 +13,28 @@ interface Props {
   startedAt: string;
   onClear: () => void;
   disabled?: boolean;
+  // NEW: Hybrid tracking metrics
+  gpsPointsCount?: number;
+  aiPointsCount?: number;
+  switchEvents?: Array<{ timestamp: string; from: string; to: string }>;
+  avgAiConfidence?: number;
 }
 
-export function ExportPanel({ points, sessionId, sessionName, mode, totalDistance, duration, startedAt, onClear, disabled }: Props) {
+export function ExportPanel({ 
+  points, 
+  sessionId, 
+  sessionName, 
+  mode, 
+  totalDistance, 
+  duration, 
+  startedAt, 
+  onClear, 
+  disabled,
+  gpsPointsCount = 0,
+  aiPointsCount = 0,
+  switchEvents = [],
+  avgAiConfidence = 0
+}: Props) {
   const { loadSession, loadAll } = useStorage();
 
   const computeMetadata = () => {
@@ -49,7 +68,26 @@ export function ExportPanel({ points, sessionId, sessionName, mode, totalDistanc
         endLon: endLon,
         exportedAt: new Date().toISOString(),
       },
-      points: pointsToUse.map((p: any) => ({ lat: p.lat, lon: p.lon, timestamp: p.timestamp, speed: p.speed, heading: p.heading, mode: p.mode || mode }))
+      // NEW: Include source and confidence in point data
+      points: pointsToUse.map((p: any) => ({ 
+        lat: p.lat, 
+        lon: p.lon, 
+        timestamp: p.timestamp, 
+        speed: p.speed, 
+        heading: p.heading, 
+        mode: p.mode || mode,
+        source: p.source || 'gps',  // NEW: Source tag
+        confidence: p.confidence ?? undefined  // NEW: AI confidence if available
+      })),
+      // NEW: Include hybrid metrics
+      hybridMetrics: {
+        gpsPointsCount: gpsPointsCount,
+        aiPointsCount: aiPointsCount,
+        totalPointsRecorded: gpsPointsCount + aiPointsCount,
+        avgAiConfidence: parseFloat(avgAiConfidence.toFixed(3)),
+        switchEvents: switchEvents,
+        switchCount: switchEvents.length
+      }
     };
   };
 
@@ -66,7 +104,8 @@ export function ExportPanel({ points, sessionId, sessionName, mode, totalDistanc
   };
 
   const toCsvRows = (rows: any[]) => {
-    const header = ['lat','lon','timestamp','speed','heading','mode','sessionName','accuracy'];
+    // NEW: Include source and confidence columns
+    const header = ['lat','lon','timestamp','speed','heading','mode','sessionName','accuracy','source','confidence'];
     const lines = [header.join(',')];
     for (const r of rows) {
       const line = [
@@ -78,6 +117,8 @@ export function ExportPanel({ points, sessionId, sessionName, mode, totalDistanc
         r.mode ?? '',
         r.sessionName ?? '',
         r.accuracy ?? '',
+        r.source ?? 'gps',  // NEW: Source default to GPS
+        r.confidence ?? ''  // NEW: Confidence (empty for GPS)
       ].map((v) => String(v).replace(/\n/g, ' '));
       lines.push(line.join(','));
     }
