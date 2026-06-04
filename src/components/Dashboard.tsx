@@ -102,6 +102,9 @@ export function Dashboard({
         accuracy={currentAccuracy}
       />
 
+      {/* GPS Signal Badge */}
+      {renderBadge()}
+
       {/* GPS Status Warning */}
       {typeof currentAccuracy === 'number' && currentAccuracy > 50 && (
         <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
