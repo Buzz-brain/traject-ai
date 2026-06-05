@@ -38,6 +38,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
 
   const sessions = useSessions();
   const storage = useStorage();
+  const lastHybridPointIndexRef = useRef<number>(-1);
 
   useEffect(() => {
     const list = sessions.list();
@@ -52,6 +53,17 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
       gps.setSession(list[0].sessionId);
     }
   }, []);
+
+  // Feed GPS points to hybrid tracker so AI predictions can be generated
+  useEffect(() => {
+    if (gps.status !== 'recording' && gps.status !== 'paused') return;
+    
+    const newPoints = gps.points.slice(lastHybridPointIndexRef.current + 1);
+    for (const point of newPoints) {
+      hybrid.addGpsPoint(point.lat, point.lon, point.accuracy ?? null, point.speed, point.heading);
+    }
+    lastHybridPointIndexRef.current = gps.points.length - 1;
+  }, [gps.points, gps.status, hybrid]);
 
   const explainDisabled = () => {
     setModalMessage(
@@ -95,6 +107,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           }
           setCountdownActive(false);
           gps.startRecording();
+          hybrid.setTrackingMode('hybrid');  // ← CRITICAL: Initialize hybrid mode
           return 0;
         }
         return c - 1;
@@ -245,6 +258,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
               }
             }
             gps.stopRecording();
+            hybrid.reset();  // ← Reset hybrid tracking when stopping
             // Save stoppedAt timestamp to session
             if (selectedSession) {
               const session = storage.loadSession(selectedSession);
@@ -277,7 +291,7 @@ export function Tracker({ isDark, onToggleTheme, onBack }: Props) {
           {showExport && (
             <div className="mt-2">
               <ExportPanel
-                points={gps.points}
+                points={hybrid.state.gpsPoints}
                 sessionId={gps.sessionId}
                 sessionName={sessionsList.find((s) => s.sessionId === selectedSession)?.sessionName}
                 mode={gps.mode}
