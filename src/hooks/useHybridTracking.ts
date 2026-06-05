@@ -225,12 +225,13 @@ export function useHybridTracking(options: UseHybridTrackingOptions = {}) {
 
       if (userModeRef.current === 'hybrid') {
         // In hybrid mode, switch between GPS and AI based on signal
+        // But ALWAYS show predictions once we have 10+ points
+        predictionActive = prev.gpsPoints.length >= 10;
+        
         if (prev.gpsSignal === 'lost' || prev.gpsSignal === 'poor') {
           newMode = prev.gpsPoints.length >= 10 ? 'hybrid' : 'gps_only';
-          predictionActive = prev.gpsPoints.length >= 10;
         } else {
           newMode = 'hybrid';
-          predictionActive = false;
         }
       } else if (userModeRef.current === 'ai_only') {
         newMode = 'ai_only';
